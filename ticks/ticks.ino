@@ -1,7 +1,10 @@
+#include <leOS2.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_PCD8544.h>
+
+leOS2 scheduler;
 
 /*
     pin 7 - Serial clock out (SCLK)
@@ -30,13 +33,18 @@ DeviceAddress deviceAddress;
 
 void setup()
 {
+    scheduler.begin();
     Serial.begin(9600);
 
     // Start up the library
     sensors.begin();
-    if(!sensors.getAddress(deviceAddress, 0))
+    if (!sensors.getAddress(deviceAddress, 0))
     {
         memset(&deviceAddress, 0, sizeof(DeviceAddress));
+    }
+    else
+    {
+        sensors.requestTemperatures();
     }
 
     display.begin();
@@ -48,47 +56,57 @@ void setup()
 
     // Tweak backlight.
     analogWrite(backlightPin, highPwm);
+    scheduler.addTask(ticker, scheduler.convertMs(1212));
 }
 
-bool waitingForTemperature = false;
+static int counter;
+void ticker()
+{
+    counter++;
+}
+
 void loop()
 {
     // Print temperature.
     display.clearDisplay();
     display.setTextColor(BLACK);
-    display.setCursor(0,0);
+    display.setCursor(0, 8);
+    display.print("Tick: ");
+    display.print(counter);
+    display.setCursor(0, 0);
     display.print("Temp: ");
-    display.setCursor(36,0);
-    if(!deviceAddress)
+    display.setCursor(36, 0);
+    if (!deviceAddress)
     {
         display.print("NO SENSOR");
     }
     else
     {
-        if(!waitingForTemperature)
+        float currentTemperature = 0.0;
+        if (sensors.isConversionAvailable(deviceAddress))
         {
+            currentTemperature = sensors.getTempC(deviceAddress);
             sensors.requestTemperatures();
-            waitingForTemperature = true;
         }
         else
         {
-            if(sensors.isConversionAvailable(deviceAddress))
-            {
-                float temp = sensors.getTempC(deviceAddress);
-                if(temp==DEVICE_DISCONNECTED)
-                {
-                    display.print("DISCONN");
-                }
-                else
-                {
-                    display.print(temp);
-                }
-                waitingForTemperature = false;
-            }
+            currentTemperature = DEVICE_DISCONNECTED - 1;
+        }
+        if (currentTemperature == DEVICE_DISCONNECTED)
+        {
+            display.print("DISCONN");
+        }
+        else if (currentTemperature == DEVICE_DISCONNECTED - 1)
+        {
+            display.print("WAIT");
+        }
+        else
+        {
+            display.print(currentTemperature);
         }
     }
 
     // Done for now.
     display.display();
-    delay(1000);
+    delay(5000);
 }
