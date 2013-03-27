@@ -3,6 +3,7 @@
  * "High" and "Low" messages from thread 2.
  */
 #include <avr/sleep.h>
+#include <avr/io.h>
 #include <NilRTOS.h>
 
 // Uncomment the next two lines to save RAM and flash
@@ -140,11 +141,12 @@ volatile uint16_t tIsr = 0;
  * would be replaced by something like
  * NIL_IRQ_HANDLER(INT0_vect).
  */
-NIL_IRQ_HANDLER(ANALOG_COMP_vect)
+// NIL_IRQ_HANDLER(ANALOG_COMP_vect)
+void keyIsr()
 {
-
     /* On AVR this forces compiler to save registers r18-r31.*/
     NIL_IRQ_PROLOGUE();
+    detachInterrupt(7);
 
     /* IRQ handling code, preemptable if the architecture supports it.*/
 
@@ -207,10 +209,11 @@ NIL_THREADS_TABLE_END()
 
 void setup()
 {
+    uint8_t pwmPin = 9, pwmHigh = 180;
     Serial.begin(9600);
-    setOn(INTERNAL_REFERENCE, AIN1);
-    enableInterrupt(CHANGE);
-    analogWrite(9, 180);
+    analogWrite(pwmPin, pwmHigh);
+    pinMode(7, INPUT);
+    digitalWrite(7, LOW);
     // Start NilRTOS.
     nilSysBegin();
 }
@@ -218,11 +221,11 @@ void setup()
 void go_to_sleep()
 {
     Serial.println("Sleep.");
-
-    set_sleep_mode(SLEEP_MODE_IDLE);
+    set_sleep_mode(SLEEP_MODE_EXT_STANDBY);
     cli();
     sleep_enable();
     sei();
+    attachInterrupt(7, keyIsr, CHANGE);
     sleep_cpu();
     sleep_disable();
 
