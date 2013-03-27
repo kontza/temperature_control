@@ -29,15 +29,15 @@ void setup()
 
     // Set up analog comparator.
     analogComparator.setOn(INTERNAL_REFERENCE, AIN1);
-    analogComparator.enableInterrupt(handleFalling, FALLING);
+    analogComparator.enableInterrupt(handleFalling, CHANGE);
 }
 
 char *up = "O";
 void handleFalling()
 {
     up[0] = 'X';
-    Serial.println("DOWN");
-    analogComparator.enableInterrupt(handleRising, RISING);
+    Serial.println("CHANGE");
+    // analogComparator.enableInterrupt(handleRising, CHANGE);
 }
 
 void handleRising()
