@@ -13,7 +13,7 @@ leOS2 scheduler;
     pin 4 - LCD chip select (CS)
     pin 3 - LCD reset (RST)
 */
-Adafruit_PCD8544 display = Adafruit_PCD8544(7, 6, 5, 4, 3);
+Adafruit_PCD8544 display = Adafruit_PCD8544(12, 11, 5, 4, 3);
 
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 2

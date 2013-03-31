@@ -5,137 +5,23 @@
 #include <avr/sleep.h>
 #include <avr/io.h>
 #include <NilRTOS.h>
+#include <NilAnalog.h>
+#include <NilTimer1.h>
+#define NO_PIN_NUMBER       // to indicate that you don't need the arduinoPin
+#include <PinChangeInt.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_PCD8544.h>
+Adafruit_PCD8544 display = Adafruit_PCD8544(12, 11, 5, 4, 3);
 
 // Uncomment the next two lines to save RAM and flash
 // with the smaller unbuffered NilSerial library.
-#include <NilSerial.h>
-#define Serial NilSerial
-
-#define AC_REGISTER ADCSRB
-//check if the micro is supported
-#if defined (__AVR_ATmega48__) || defined (__AVR_ATmega88__) || defined (__AVR_ATmega168__) || defined (__AVR_ATmega328__) || defined (__AVR_ATmega48P__) || defined (__AVR_ATmega88P__) || defined (__AVR_ATmega168P__) || defined (__AVR_ATmega328P__)
-#define ATMEGAx8
-#define NUM_ANALOG_INPUTS 6
-#elif defined (__AVR_ATtiny25__) || defined (__AVR_ATtiny45__) || defined (__AVR_ATtiny85__)
-#define ATTINYx5
-#define NUM_ANALOG_INPUTS 4
-#elif defined (__AVR_ATmega8__) || defined (__AVR_ATmega8A__)
-#define ATMEGA8
-#undef AC_REGISTER
-#define AC_REGISTER SFIOR
-#define NUM_ANALOG_INPUTS 6
-#elif defined (__AVR_ATtiny24__) || defined (__AVR_ATtiny44__) || defined (__AVR_ATtiny84__)
-#define ATTINYx4
-#define NUM_ANALOG_INPUTS 8
-#elif defined (__AVR_ATmega640__) || defined (__AVR_ATmega1280__) || defined (__AVR_ATmega1281__) || defined (__AVR_ATmega2560__) || defined (__AVR_ATmega2561__)
-#define ATMEGAx0
-#define NUM_ANALOG_INPUTS 16
-#elif defined (__AVR_ATmega344__) || defined (__AVR_ATmega344P__) || defined (__AVR_ATmega644__) || defined (__AVR_ATmega644P__) || defined (__AVR_ATmega644PA__) || defined (__AVR_ATmega1284P__)
-#define ATMEGAx4
-#define NUM_ANALOG_INPUTS 8
-#elif defined (__AVR_ATtiny2313__) || defined (__AVR_ATtiny4313__)
-#define ATTINYx313
-#define NUM_ANALOG_INPUTS 0
-#elif defined (__AVR_ATmega32U4__)
-#define ATMEGAxU
-#define NUM_ANALOG_INPUTS 12
-#else
-#error Sorry, microcontroller not supported!
-#endif
-
-const uint8_t AIN0 = 0;
-const uint8_t INTERNAL_REFERENCE = 1;
-const uint8_t AIN1 = 255;
-uint8_t oldADCSRA;
-
-//setting and switching on the analog comparator
-uint8_t setOn(uint8_t tempAIN0, uint8_t tempAIN1)
-{
-    //initialize the analog comparator (AC)
-    ACSR &= ~(1 << ACIE); //disable interrupts on AC
-    ACSR &= ~(1 << ACD); //switch on the AC
-
-    //choose the input for non-inverting input
-    if (tempAIN0 == INTERNAL_REFERENCE)
-    {
-        ACSR |= (1 << ACBG); //set Internal Voltage Reference (1V1)
-    }
-    else
-    {
-        ACSR &= ~(1 << ACBG); //set pin AIN0
-    }
-
-    //for Atmega32U4, only ADMUX is allowed as input for AIN-
-#ifdef ATMEGAxU
-    if (tempAIN1 == AIN1)
-    {
-        tempAIN1 = 0; //choose ADC0
-    }
-#endif
-
-    //AtTiny2313/4313 don't have ADC, so inputs are always AIN0 and AIN1
-#ifndef ATTINYx313
-    //choose the input for inverting input
-    if ((tempAIN1 >= 0) && (tempAIN1 < NUM_ANALOG_INPUTS))   //set the AC Multiplexed Input using an analog input pin
-    {
-        oldADCSRA = ADCSRA;
-        ADCSRA &= ~(1 << ADEN);
-        ADMUX &= ~31; //reset the first 5 bits
-        ADMUX |= tempAIN1; //choose the ADC channel (0..NUM_ANALOG_INPUTS-1)
-        AC_REGISTER |= (1 << ACME);
-    }
-    else
-    {
-        AC_REGISTER &= ~(1 << ACME); //set pin AIN1
-    }
-#endif
-
-    //disable digital buffer on pins AIN0 && AIN1 to reduce current consumption
-#if defined(ATTINYx5)
-    DIDR0 &= ~((1 << AIN1D) | (1 << AIN0D));
-#elif defined(ATTINYx4)
-    DIDR0 &= ~((1 << ADC2D) | (1 << ADC1D));
-#elif defined (ATMEGAx4)
-    DIDR1 &= ~(1 << AIN0D);
-#elif defined (ATTINYx313)
-    DIDR &= ~((1 << AIN1D) | (1 << AIN0D));
-#elif defined (ATMEGAx8) || defined(ATMEGAx4) || defined(ATMEGAx0)
-    DIDR1 &= ~((1 << AIN1D) | (1 << AIN0D));
-#endif
-    return 0; //OK
-}
-
-void enableInterrupt(uint8_t tempMode)
-{
-    // Disable interrupts.
-    SREG &= ~(1 << SREG_I);
-    ACSR &= ~(1 << ACIE);
-
-    //set the interrupt mode
-    if (tempMode == CHANGE)
-    {
-        ACSR &= ~((1 << ACIS1) | (1 << ACIS0)); //interrupt on toggle event
-    }
-    else if (tempMode == FALLING)
-    {
-        ACSR &= ~(1 << ACIS0);
-        ACSR |= (1 << ACIS1);
-    }
-    else     //default is RISING
-    {
-        ACSR |= ((1 << ACIS1) | (1 << ACIS0));
-    }
-
-    // Enable interrupts.
-    ACSR |= (1 << ACIE);
-    SREG |= (1 << SREG_I);
-}
+//#include <NilSerial.h>
+//#define Serial NilSerial
+volatile unsigned int keySeen = 0;
 
 // Declare and initialize the semaphore.
 SEMAPHORE_DECL(isrSem, 0);
 
-// Low bits of ISR entry time in micros.
-volatile uint16_t tIsr = 0;
 //------------------------------------------------------------------------------
 /* Fake ISR, normally void isrFcn()
  * would be replaced by something like
@@ -146,12 +32,9 @@ void keyIsr()
 {
     /* On AVR this forces compiler to save registers r18-r31.*/
     NIL_IRQ_PROLOGUE();
-    detachInterrupt(7);
+    PCdetachInterrupt(7);
 
     /* IRQ handling code, preemptable if the architecture supports it.*/
-
-    /* Save low bits of micros(). */
-    tIsr = micros();
 
     /* Nop on AVR.*/
     nilSysLockFromIsr();
@@ -178,19 +61,33 @@ NIL_WORKING_AREA(waThread1, 64);
 // Declare thread function for thread 1.
 NIL_THREAD(Thread1, arg)
 {
+    int keyValue = 0, tmpValue = 20;
+
+    Serial.println("KT: start.");
+    Serial.flush();
     while (1)
     {
         // wait for event
         nilSemWait(&isrSem);
-
-        // Save time.
-        uint16_t t = micros();
-
-        // Print message with elapsed time.
-
-        Serial.print(F("Handler: "));
-        Serial.print(t - tIsr);
-        Serial.println(F(" usec"));
+        Serial.println("KT: sem seen.");
+        Serial.flush();
+        // Wait for 100ms.
+        nilTimer1Start(500000);
+        while (tmpValue > 10)
+        {
+            nilTimer1Wait();
+            Serial.println("KT: timer done.");
+            Serial.flush();
+            // do ADC
+            tmpValue = nilAnalogRead(0);
+            keyValue = tmpValue;
+            Serial.print("Key thread:");
+            Serial.println(keyValue);
+            Serial.flush();
+        }
+        tmpValue = 20;
+        keySeen = millis();
+        nilTimer1Stop();
     }
 }
 
@@ -206,12 +103,16 @@ NIL_THREADS_TABLE_BEGIN()
 NIL_THREADS_TABLE_ENTRY("Thread1", Thread1, NULL, waThread1, sizeof(waThread1))
 NIL_THREADS_TABLE_END()
 //------------------------------------------------------------------------------
+volatile uint8_t pwmPin = 6, pwmHigh = 180;
 
 void setup()
 {
-    uint8_t pwmPin = 9, pwmHigh = 180;
     Serial.begin(9600);
     analogWrite(pwmPin, pwmHigh);
+    display.begin();
+    display.setContrast(50);
+    display.setTextColor(BLACK);
+    display.display();
     pinMode(7, INPUT);
     digitalWrite(7, LOW);
     // Start NilRTOS.
@@ -221,15 +122,19 @@ void setup()
 void go_to_sleep()
 {
     Serial.println("Sleep.");
+    Serial.flush();
     set_sleep_mode(SLEEP_MODE_EXT_STANDBY);
+    // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();
     sleep_enable();
     sei();
-    attachInterrupt(7, keyIsr, CHANGE);
+    PCattachInterrupt(7, keyIsr, RISING);
     sleep_cpu();
     sleep_disable();
-
+    analogWrite(pwmPin, pwmHigh);
     Serial.println("Wake up.");
+    Serial.flush();
 }
 
 //------------------------------------------------------------------------------
@@ -237,5 +142,13 @@ void go_to_sleep()
 // kernel primitive able to change its state to not runnable.
 void loop()
 {
-    go_to_sleep();
+    static int counter = 0;
+    counter++;
+    Serial.print("Counter: ");
+    Serial.println(counter);
+    Serial.flush();
+    if (keySeen + 500 < millis())
+    {
+        go_to_sleep();
+    }
 }
