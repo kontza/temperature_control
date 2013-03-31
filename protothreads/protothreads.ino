@@ -64,12 +64,13 @@ void keyIsr()
 
 PT_THREAD(keyHandler(struct pt *pt))
 {
-    int keyValue = 0, tmpValue = 20, timer;
+    int keyValue = 0, tmpValue = 11, timer;
 
     PT_BEGIN(pt);
     while (1)
     {
         // wait for event
+        PCattachInterrupt(7, keyIsr, RISING);
         log("KT: wait sem");
         idleTimer = millis();
         do
@@ -85,15 +86,15 @@ PT_THREAD(keyHandler(struct pt *pt))
                 log("KT: timeout, yield for idle");
                 PT_SEM_SIGNAL(pt, &idleSem);
                 PT_YIELD(pt);
+                tmpValue = 1;
             }
         }
         while (0);
         while (tmpValue > 10)
         {
-            log("KT: repeat wait");
-            idleTimer = millis();
+            log("KT: key repeat wait");
             // Wait for 500ms.
-            timer = idleTimer + 500;
+            timer = millis() + 500;
             PT_WAIT_UNTIL(pt, millis() > timer);
             // Get key value.
             tmpValue = analogRead(0);
@@ -101,17 +102,7 @@ PT_THREAD(keyHandler(struct pt *pt))
             log("KT: wait over & processed");
         }
         log("KT: loop over.");
-        tmpValue = 20;
-        if (millis() > idleTimer + 5000)
-        {
-            log("KT: idle sem signalled");
-            PT_SEM_SIGNAL(pt, &idleSem);
-        }
-        else
-        {
-            log("KT: wait for keyIsr");
-            PCattachInterrupt(7, keyIsr, RISING);
-        }
+        tmpValue = 11;
     }
     PT_END(pt);
 }
