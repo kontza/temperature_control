@@ -12,7 +12,7 @@ Adafruit_PCD8544 display = Adafruit_PCD8544(12, 11, 5, 4, 3);
 static volatile struct pt_sem isrSem;
 static struct pt_sem idleSem;
 static struct pt pt_KeyHandler, pt_Idle;
-static int idleTimer = 0;
+static unsigned long idleTimer = 0;
 volatile uint8_t pwmPin = 6, pwmHigh = 180, pwmLow = 0;
 
 void log(const char *msg)
@@ -55,16 +55,17 @@ void log(const char *msg)
 
 void keyIsr()
 {
-    /* On AVR this forces compiler to save registers r18-r31.*/
+    cli();
     PCdetachInterrupt(7);
-
-    /* Signal handler thread. */
-    PT_SEM_SIGNAL(NULL, &isrSem);
+    ++isrSem.count;
+    sei();
 }
 
 PT_THREAD(keyHandler(struct pt *pt))
 {
-    int keyValue = 0, tmpValue = 11, timer;
+    long keyValue = 0, tmpValue = 11, keyCount = 0;
+    static const unsigned long initialKeyRepeatTimer = 300;
+    unsigned long timeOut, keyRepeatTimer = initialKeyRepeatTimer;
 
     PT_BEGIN(pt);
     while (1)
@@ -93,9 +94,15 @@ PT_THREAD(keyHandler(struct pt *pt))
         while (tmpValue > 10)
         {
             log("KT: key repeat wait");
-            // Wait for 500ms.
-            timer = millis() + 500;
-            PT_WAIT_UNTIL(pt, millis() > timer);
+
+            // Wait for a while to see if the key is still down.
+            timeOut = millis() + keyRepeatTimer;
+            PT_WAIT_UNTIL(pt, millis() > timeOut);
+
+            if (++keyCount > 10)
+            {
+                keyRepeatTimer -= 100;
+            }
             // Get key value.
             tmpValue = analogRead(0);
             keyValue = tmpValue;
