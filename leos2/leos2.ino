@@ -62,10 +62,9 @@ void idle()
 {
     if (millis() < idleTimeout)
     {
-        log("ID: fast return");
         return;
     }
-    log("ID: sem seen, sleep");
+    log("ID: time to sleep");
     analogWrite(pwmPin, pwmLow);
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();
@@ -73,7 +72,7 @@ void idle()
     sei();
     PCattachInterrupt(7, keyIsr, RISING);
     // Disable scheduler by disabling WDT ISR.
-    scheduler.pauseScheduler();
+    scheduler.haltScheduler();
     sleep_cpu();
     // Restart scheduler.
     scheduler.restartScheduler();
