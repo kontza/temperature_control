@@ -5,41 +5,24 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_PCD8544.h>
 #include <leOS2.h>
+#include "utils.h"
 leOS2 scheduler;
-Adafruit_PCD8544 display = Adafruit_PCD8544(12, 11, 5, 4, 3);
 
-// Declare and initialize the semaphore.
-uint8_t isrSem = 0;
-uint8_t idleSem = 0;
+// Adafruit_PCD8544(int8_t SCLK, int8_t DIN, int8_t DC, int8_t CS, int8_t RST)
+Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 5, 4, 3);
+
+// Countdown value until power down.
 volatile unsigned long idleTimeout = 0;
+
+// PWM variables:
+// Pin number.
 volatile uint8_t pwmPin = 6, pwmHigh = 180, pwmLow = 0;
+// High value for PWM.
+volatile uint8_t pwmHigh = 180;
+// Low value for PWM.
+volatile uint8_t pwmLow = 0;
 
-void log(const char *msg)
-{
-    unsigned long timestamp = millis();
-    unsigned long workvalue = timestamp;
-    unsigned long result;
-    unsigned long divisor = 100000;
-    while (divisor)
-    {
-        result = workvalue / divisor;
-        workvalue = workvalue - result * divisor;
-        if (!result)
-        {
-            Serial.print(' ');
-        }
-        else
-        {
-            break;
-        }
-        divisor /= 10;
-    }
-    Serial.print(timestamp);
-    Serial.print(' ');
-    Serial.println(msg);
-    Serial.flush();
-}
-
+// Keyboard ISR releases keyHandler from pause state.
 void keyIsr()
 {
     cli();
@@ -48,6 +31,7 @@ void keyIsr()
     scheduler.restartTask(keyHandler);
 }
 
+// Handle key input.
 void keyHandler()
 {
     long keyValue = 0, tmpValue = 11, keyCount = 0;
@@ -56,10 +40,18 @@ void keyHandler()
     log("KT: resumed.");
     idleTimeout = millis() + 5000;
     scheduler.pauseTask(keyHandler);
+    PCattachInterrupt(7, keyIsr, RISING);
 }
 
+// Idle task waits until timeout occurs and puts the CPU to sleep.
 void idle()
 {
+    long timeToStayUp = (long)(idleTimeout-millis());
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.println("Count-down:");
+    display.println(timeToStayUp);
+    display.display();
     if (millis() < idleTimeout)
     {
         return;
@@ -71,34 +63,44 @@ void idle()
     sleep_enable();
     sei();
     PCattachInterrupt(7, keyIsr, RISING);
-    // Disable scheduler by disabling WDT ISR.
+    // Disable scheduler so that WDT ISR won't wake us up.
     scheduler.haltScheduler();
+    digitalWrite(3, LOW);
     sleep_cpu();
-    // Restart scheduler.
-    scheduler.restartScheduler();
     sleep_disable();
     analogWrite(pwmPin, pwmHigh);
+    digitalWrite(3, HIGH);
+    initDisplay();
     log("ID: wake up");
+    // Restart scheduler.
+    scheduler.restartScheduler();
 }
 
+// Initialize the display.
+void initDisplay()
+{
+    display.begin();
+    display.setContrast(50);
+    display.setTextColor(BLACK);
+}
+
+// Stock function.
 void setup()
 {
     Serial.begin(9600);
     analogWrite(pwmPin, pwmHigh);
-    display.begin();
-    display.setContrast(50);
-    display.setTextColor(BLACK);
-    display.display();
     pinMode(7, INPUT);
     digitalWrite(7, LOW);
+    initDisplay();
     scheduler.begin(10);
     scheduler.addTask(keyHandler, scheduler.convertMs(100));
-    scheduler.addTask(idle, scheduler.convertMs(100));
-    // Put both tasks on pause.
+    scheduler.addTask(idle, scheduler.convertMs(500));
+    // Put key task on pause.
     idleTimeout = millis() + 5000;
     scheduler.pauseTask(keyHandler);
 }
 
+// With leOS2, we don't need the loop-routine.
 void loop()
 {
 }
