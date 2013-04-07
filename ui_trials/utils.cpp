@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 // Serial port logger.
 void log(const char *msg)
 {

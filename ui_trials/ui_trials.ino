@@ -5,18 +5,22 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_PCD8544.h>
 #include <leOS2.h>
+#include "analogISR.h"
 #include "utils.h"
 leOS2 scheduler;
+
+// Idle "ticks" until sleep.
+#define INITIAL_ACTIVITY_TIMER 10
 
 // Adafruit_PCD8544(int8_t SCLK, int8_t DIN, int8_t DC, int8_t CS, int8_t RST)
 Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 5, 4, 3);
 
 // Countdown value until power down.
-volatile unsigned long idleTimeout = 0;
+volatile uint8_t activityTimer;
 
 // PWM variables:
 // Pin number.
-volatile uint8_t pwmPin = 6, pwmHigh = 180, pwmLow = 0;
+volatile uint8_t pwmPin = 6;
 // High value for PWM.
 volatile uint8_t pwmHigh = 180;
 // Low value for PWM.
@@ -34,11 +38,19 @@ void keyIsr()
 // Handle key input.
 void keyHandler()
 {
-    long keyValue = 0, tmpValue = 11, keyCount = 0;
     static const unsigned long initialKeyRepeatTimer = 300;
     unsigned long timeOut, keyRepeatTimer = initialKeyRepeatTimer;
+    int tmpValue = 11, keyCount = 0, keyValue;
     log("KT: resumed.");
-    idleTimeout = millis() + 5000;
+    keyValue = leOS2AnalogRead(0);
+    log("KT: ADC done.");
+    waitForKey();
+}
+
+// Wait for a key.
+void waitForKey()
+{
+    activityTimer = INITIAL_ACTIVITY_TIMER;
     scheduler.pauseTask(keyHandler);
     PCattachInterrupt(7, keyIsr, RISING);
 }
@@ -46,13 +58,12 @@ void keyHandler()
 // Idle task waits until timeout occurs and puts the CPU to sleep.
 void idle()
 {
-    long timeToStayUp = (long)(idleTimeout-millis());
     display.clearDisplay();
-    display.setCursor(0,0);
+    display.setCursor(0, 0);
     display.println("Count-down:");
-    display.println(timeToStayUp);
+    display.println(--activityTimer);
     display.display();
-    if (millis() < idleTimeout)
+    if (activityTimer > 0)
     {
         return;
     }
@@ -96,8 +107,7 @@ void setup()
     scheduler.addTask(keyHandler, scheduler.convertMs(100));
     scheduler.addTask(idle, scheduler.convertMs(500));
     // Put key task on pause.
-    idleTimeout = millis() + 5000;
-    scheduler.pauseTask(keyHandler);
+    waitForKey();
 }
 
 // With leOS2, we don't need the loop-routine.
