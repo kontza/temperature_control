@@ -12,25 +12,20 @@ leOS2 scheduler;
 // Idle "ticks" until sleep.
 #define INITIAL_ACTIVITY_TIMER 10
 
+// Pin for keyboard pin change interrupt.
+#define KEYBOARD_PIN 7
+
 // Adafruit_PCD8544(int8_t SCLK, int8_t DIN, int8_t DC, int8_t CS, int8_t RST)
 Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 5, 4, 3);
 
 // Countdown value until power down.
 volatile uint8_t activityTimer;
 
-// PWM variables:
-// Pin number.
-volatile uint8_t pwmPin = 6;
-// High value for PWM.
-volatile uint8_t pwmHigh = 180;
-// Low value for PWM.
-volatile uint8_t pwmLow = 0;
-
 // Keyboard ISR releases keyHandler from pause state.
 void keyIsr()
 {
     cli();
-    PCdetachInterrupt(7);
+    PCdetachInterrupt(KEYBOARD_PIN);
     sei();
     scheduler.restartTask(keyHandler);
 }
@@ -52,34 +47,45 @@ void waitForKey()
 {
     activityTimer = INITIAL_ACTIVITY_TIMER;
     scheduler.pauseTask(keyHandler);
-    PCattachInterrupt(7, keyIsr, RISING);
+    PCattachInterrupt(KEYBOARD_PIN, keyIsr, RISING);
 }
 
 // Idle task waits until timeout occurs and puts the CPU to sleep.
+static uint8_t firstIdle = 1;
 void idle()
 {
-    display.clearDisplay();
+    if (firstIdle)
+    {
+        firstIdle = 0;
+        display.clearDisplay();
+    }
+    else
+    {
+        display.fillRect(0, 0, 84, 16, 0);
+    }
     display.setCursor(0, 0);
     display.println("Count-down:");
     display.println(--activityTimer);
+    unsigned long alfa = millis();
     display.display();
+    // Serial log the time taken by display.display().
+    log((int)(millis() - alfa));
     if (activityTimer > 0)
     {
         return;
     }
     log("ID: time to sleep");
-    analogWrite(pwmPin, pwmLow);
+    backlight(OFF);
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();
     sleep_enable();
     sei();
-    PCattachInterrupt(7, keyIsr, RISING);
+    PCattachInterrupt(KEYBOARD_PIN, keyIsr, RISING);
     // Disable scheduler so that WDT ISR won't wake us up.
     scheduler.haltScheduler();
     digitalWrite(3, LOW);
     sleep_cpu();
     sleep_disable();
-    analogWrite(pwmPin, pwmHigh);
     digitalWrite(3, HIGH);
     initDisplay();
     log("ID: wake up");
@@ -90,6 +96,7 @@ void idle()
 // Initialize the display.
 void initDisplay()
 {
+    backlight(ON);
     display.begin();
     display.setContrast(50);
     display.setTextColor(BLACK);
@@ -99,9 +106,8 @@ void initDisplay()
 void setup()
 {
     Serial.begin(9600);
-    analogWrite(pwmPin, pwmHigh);
-    pinMode(7, INPUT);
-    digitalWrite(7, LOW);
+    pinMode(KEYBOARD_PIN, INPUT);
+    digitalWrite(KEYBOARD_PIN, LOW);
     initDisplay();
     scheduler.begin(10);
     scheduler.addTask(keyHandler, scheduler.convertMs(100));
