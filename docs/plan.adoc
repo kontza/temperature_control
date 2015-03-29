@@ -1,0 +1,58 @@
+// encoding: utf-8
+include::000-commondef.adoc[]
+:doctitle: Mistä on kyse?
+
+= {doctitle}
+
+== The Picture
+
+[plantuml, block, png]
+.Activities related to the blocking operation.
+----
+Kapula -> Otsonkolo: Sauna päälle
+Otsonkolo -> Arduino: Sauna päälle
+alt Ovi kiinni
+    Ovianturi -> Arduino: Ovi kiinni
+    Arduino -> C150VKK: Sauna päälle
+    C150VKK -> Arduino: OK
+    Arduino -> Otsonkolo: OK
+    Otsonkolo -> Kapula: OK
+else Ovi auki
+    Ovianturi -> Arduino: Ovi auki
+    Arduino -> Otsonkolo: Not OK (ovi auki)
+    Otsonkolo -> Kapula: Not OK (ovi auki)
+end
+...
+Kapula -> Otsonkolo: Sauna pois päältä
+Otsonkolo -> Arduino: Sauna pois päältä
+Arduino -> C150VKK: Sauna pois päältä
+C150VKK -> Arduino: OK
+Arduino -> Otsonkolo: OK
+Otsonkolo -> Kapula: OK
+...
+Arduino -> Otsonkolo: Saunan tila
+Otsonkolo -> Kapula: Tilatieto
+...
+----
+
+== Protoiltavia
+
+=== Arduino
+* Sauna pois: näyttö pimeänä.
+* Sauna päällä, näyttö päällä ja näytöllä lukee:
+* Sauna päällä.
+* Oven tila.
+* *Demoile ethernet-juttua.*
+* Etäkäynnistys ei saa onnistua, mikäli ovi on auki.
+
+=== Ovianturi
+* Ovianturi demottava näkkärillä.
+* _29.3.2015: Kokeiltu tammikuussa. Osasi antaa etäisyyden odotettavasti._
+
+=== C150VKK
+* Optoisolointi demottava saunan ohjaimella.
+
+=== Nukkumiskirjastot
+* narcoleptic
+** Ehkei sittenkään. Vaikuttaa, että myös keskeytykset menevät nukkumaan.
+* Sleep_n0m1

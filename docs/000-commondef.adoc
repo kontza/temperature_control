@@ -1,0 +1,23 @@
+:imagesdir: ./gen
+:data-uri:
+:pagenums: 1
+:pdf-style: asciidoctor
+:source-highlighter: coderay
+:numbered:
+:sectlinks:
+:sectanchors:
+:toc:
+:toclevels: 4
+:sectnumlevels: 4
+:icons: font
+:legalnotice: Confidential
+:copyright: (C) 2013-2015 FastROI Oy
+:appname: {webapp} Mobile Client
+:app: the mobile application
+:doctitle: {appname} Developer Reference
+:theseus: https://www.theseus.fi/handle/10024/84735
+:telerik: http://blogs.telerik.com/appbuilder/posts/12-06-14/what-is-a-hybrid-mobile-app-
+:senchadocs: http://docs.sencha.com/touch
+:async: asynchronous
+:cordova: Apache Cordova
+:touch: Sencha Touch
